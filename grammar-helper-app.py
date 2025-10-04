@@ -18,40 +18,45 @@ CARDS = DATA.get("countabilityCards", [])
 def init_state():
     if "deck" not in st.session_state:
         st.session_state.deck = list(CARDS)
+    if "idx" not in st.session_state:
         st.session_state.idx = 0
+    if "revealed" not in st.session_state:
         st.session_state.revealed = False
 
 def clamp_idx():
     n = len(st.session_state.deck)
     if n == 0:
         st.session_state.idx = 0
-        st.session_state.revealed = False
     else:
         st.session_state.idx %= n
-
-def goto(delta: int):
-    n = len(st.session_state.deck)
-    if n == 0:
-        return
-    st.session_state.idx = (st.session_state.idx + delta) % n
-    st.session_state.revealed = False
-
-def shuffle_deck():
-    random.shuffle(st.session_state.deck)
-    st.session_state.idx = 0
-    st.session_state.revealed = False
-
-def badge(text, color):
-    st.markdown(
-        f"""<span style="display:inline-block;padding:4px 10px;border-radius:9999px;
-        font-size:12px;font-weight:600;color:white;background:{color};">{text}</span>""",
-        unsafe_allow_html=True,
-    )
 
 init_state()
 clamp_idx()
 
-# ---------- Single view (no extra tabs/boxes) ----------
+# ---------- Callbacks (use stable keys to avoid double-click/skips) ----------
+def on_prev():
+    if not st.session_state.deck:
+        return
+    st.session_state.idx = (st.session_state.idx - 1) % len(st.session_state.deck)
+    st.session_state.revealed = False
+
+def on_next():
+    if not st.session_state.deck:
+        return
+    st.session_state.idx = (st.session_state.idx + 1) % len(st.session_state.deck)
+    st.session_state.revealed = False
+
+def on_shuffle():
+    if not st.session_state.deck:
+        return
+    random.shuffle(st.session_state.deck)
+    st.session_state.idx = 0
+    st.session_state.revealed = False
+
+def on_toggle_reveal():
+    st.session_state.revealed = not st.session_state.revealed
+
+# ---------- UI ----------
 st.title("IELTS speaking grammar helper")
 st.subheader("Countable vs Uncountable · Flashcards")
 
@@ -61,27 +66,24 @@ if not st.session_state.deck:
 
 card = st.session_state.deck[st.session_state.idx]
 
-# Word
+# Word face
 st.markdown(
     f'<div style="font-size:44px;font-weight:800;letter-spacing:.3px">{card.get("word","")}</div>',
     unsafe_allow_html=True,
 )
-st.caption("Click “Reveal” to show countability and an example.")
+st.caption("Reveal shows countability and example. Prev/Next always hide by default.")
 
-# Controls row: Prev · Reveal · Next · Shuffle · Counter
+# Controls: Prev · Reveal/Hide · Next · Shuffle · Counter
 c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 3])
 with c1:
-    if st.button("◀ Prev"):
-        goto(-1)
+    st.button("◀ Prev", key="btn_prev", on_click=on_prev)
 with c2:
-    if st.button("Reveal" if not st.session_state.revealed else "Hide"):
-        st.session_state.revealed = not st.session_state.revealed
+    label = "Hide" if st.session_state.revealed else "Reveal"
+    st.button(label, key="btn_toggle", on_click=on_toggle_reveal)
 with c3:
-    if st.button("Next ▶"):
-        goto(+1)
+    st.button("Next ▶", key="btn_next", on_click=on_next)
 with c4:
-    if st.button("Shuffle"):
-        shuffle_deck()
+    st.button("Shuffle", key="btn_shuffle", on_click=on_shuffle)
 with c5:
     st.write(f"{st.session_state.idx + 1} / {len(st.session_state.deck)}")
 
@@ -89,7 +91,12 @@ with c5:
 if st.session_state.revealed:
     typ = (card.get("countability") or "").lower()
     color = {"countable": "#16a34a", "uncountable": "#dc2626", "both": "#2563eb"}.get(typ, "#6b7280")
-    badge(typ or "unknown", color)
+
+    st.markdown(
+        f"""<span style="display:inline-block;padding:4px 10px;border-radius:9999px;
+        font-size:12px;font-weight:600;color:white;background:{color};">{typ or "unknown"}</span>""",
+        unsafe_allow_html=True,
+    )
 
     ex = card.get("example") or ""
     if ex:
